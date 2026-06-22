@@ -275,10 +275,15 @@ async function run(orcid){
     const topIds = (me.topics||[]).map(t=>t.id.split('/').pop()); // use ALL research topics to broaden the net
     if(!topIds.length){ setStatus("This profile has no indexed research topics yet, so matching is not possible.",true); $("#searchBtn").disabled=false; return; }
     const sel = "id,display_name,orcid,works_count,cited_by_count,summary_stats,topics,last_known_institutions,affiliations";
-    const cr = await fetch(`${OA}/authors?filter=topics.id:${topIds.join("|")}&sort=cited_by_count:desc&per_page=200&select=${sel}&${MAILTO}`).then(r=>r.json());
+    // fetch a 600-author pool (OpenAlex caps each request at 200, so page through 3 times)
+    const base = `${OA}/authors?filter=topics.id:${topIds.join("|")}&sort=cited_by_count:desc&per_page=200&select=${sel}&${MAILTO}`;
+    const pages = await Promise.all([1,2,3].map(p=>
+      fetch(`${base}&page=${p}`).then(r=>r.ok?r.json():{results:[]}).catch(()=>({results:[]}))
+    ));
+    const pool = pages.flatMap(p=>p.results||[]);
 
     // 4. score
-    const scored = (cr.results||[])
+    const scored = pool
       .filter(a => !state.coAuthorIds.has(a.id))
       .map(a=>{
         const sim = cosine(myTopics, topicMap(a.topics));
