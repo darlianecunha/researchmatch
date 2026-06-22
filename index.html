@@ -144,7 +144,13 @@ const cc = (code)=>{ // ISO code -> readable name (subset)
   const m={NL:"Netherlands",DE:"Germany",GB:"United Kingdom",SE:"Sweden",BE:"Belgium",SG:"Singapore",
     BR:"Brazil",US:"United States",CA:"Canada",CN:"China",HK:"Hong Kong",NO:"Norway",DK:"Denmark",
     IT:"Italy",ES:"Spain",FR:"France",PT:"Portugal",AU:"Australia",JP:"Japan",KR:"South Korea",
-    FI:"Finland",GR:"Greece",CY:"Cyprus",NZ:"New Zealand",TR:"Turkey",IN:"India",PL:"Poland",CL:"Chile"};
+    FI:"Finland",GR:"Greece",CY:"Cyprus",NZ:"New Zealand",TR:"Turkey",IN:"India",PL:"Poland",CL:"Chile",
+    CH:"Switzerland",AT:"Austria",IE:"Ireland",MY:"Malaysia",ZA:"South Africa",AE:"United Arab Emirates",
+    TH:"Thailand",ID:"Indonesia",PH:"Philippines",EE:"Estonia",SA:"Saudi Arabia",IL:"Israel",MX:"Mexico",
+    RU:"Russia",UA:"Ukraine",CZ:"Czechia",RO:"Romania",HU:"Hungary",VN:"Vietnam",EG:"Egypt",CO:"Colombia",
+    AR:"Argentina",TW:"Taiwan",IR:"Iran",PK:"Pakistan",BD:"Bangladesh",LT:"Lithuania",LV:"Latvia",SI:"Slovenia",
+    HR:"Croatia",RS:"Serbia",SK:"Slovakia",LU:"Luxembourg",IS:"Iceland",MT:"Malta",QA:"Qatar",KW:"Kuwait",
+    OM:"Oman",NG:"Nigeria",KE:"Kenya",MA:"Morocco",GH:"Ghana"};
   return m[code]||code||"—";
 };
 const initials = n => n.split(/\s+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
@@ -345,7 +351,7 @@ function renderProfile(me){
 
 // ---------- filters ----------
 function buildFilters(list){
-  const regions = [...new Set(["BR",...list.map(a=>affilOf(a).country_code).filter(Boolean)])].sort();
+  const regions = [...new Set(["BR",...list.map(a=>affilOf(a).country_code).filter(c=>c&&cc(c)!==c)])].sort();
   const rsel = $("#regionSel"); rsel.innerHTML='<option value="">All regions</option>';
   regions.forEach(c=>rsel.append(el("option",{value:c}, cc(c))));
   const topics = [...new Set(list.flatMap(a=>(a.topics||[]).slice(0,3).map(t=>t.display_name)))].sort();
@@ -422,6 +428,11 @@ function card(a){
     c.append(el("div",{class:"divider"},
       el("div",{class:"sec-t"},"Contact"),
       el("a",{href:"mailto:"+a._email,class:"small",style:"color:#14b8a6;word-break:break-all"}, "✉ "+a._email)));
+  }
+  // ORCID number, visible and selectable for copying
+  if(a.orcid){
+    const oid=a.orcid.replace(/^https?:\/\/orcid\.org\//,"");
+    c.append(el("div",{class:"small mono",style:"color:#8099b8;user-select:all;cursor:text"}, "ORCID: "+oid));
   }
   // actions
   const gsUrl = "https://scholar.google.com/scholar?q=" + encodeURIComponent('"'+a.display_name+'"');
