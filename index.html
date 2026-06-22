@@ -432,7 +432,7 @@ function card(a){
   // ORCID number, visible and selectable for copying
   if(a.orcid){
     const oid=a.orcid.replace(/^https?:\/\/orcid\.org\//,"");
-    c.append(el("div",{class:"small mono",style:"color:#8099b8;user-select:all;cursor:text"}, "ORCID: "+oid));
+    c.append(el("div",{class:"small mono",style:"color:#8099b8;user-select:all;cursor:text"}, oid));
   }
   // actions
   const gsUrl = "https://scholar.google.com/scholar?q=" + encodeURIComponent('"'+a.display_name+'"');
