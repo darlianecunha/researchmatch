@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ResearchMatch · ORCID collaborator finder</title>
+<title>ResearchMatch with ORCID · collaborator finder</title>
 <link rel="preconnect" href="https://api.openalex.org" />
 <style>
   :root{
@@ -67,8 +67,8 @@
   <div class="hdr">
     <div class="logo">RM</div>
     <div>
-      <div style="font-size:17px;font-weight:700;letter-spacing:-.5px">ResearchMatch</div>
-      <div class="small mono muted">ORCID-driven collaborator discovery · powered by OpenAlex</div>
+      <div style="font-size:17px;font-weight:700;letter-spacing:-.5px">ResearchMatch <span style="color:#22d3ee">with ORCID</span></div>
+      <div class="small mono muted">find collaborators from an ORCID profile · powered by OpenAlex</div>
     </div>
   </div>
 
@@ -345,7 +345,7 @@ function renderProfile(me){
 
 // ---------- filters ----------
 function buildFilters(list){
-  const regions = [...new Set(list.map(a=>affilOf(a).country_code).filter(Boolean))].sort();
+  const regions = [...new Set(["BR",...list.map(a=>affilOf(a).country_code).filter(Boolean)])].sort();
   const rsel = $("#regionSel"); rsel.innerHTML='<option value="">All regions</option>';
   regions.forEach(c=>rsel.append(el("option",{value:c}, cc(c))));
   const topics = [...new Set(list.flatMap(a=>(a.topics||[]).slice(0,3).map(t=>t.display_name)))].sort();
