@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ResearchMatch · ORCID collaborator finder</title>
+<link rel="preconnect" href="https://api.openalex.org" />
+<style>
+  :root{
+    --bg:#0a1628; --panel:#111f38; --panel2:#0f2044; --line:#1e3357;
+    --accent:#22d3ee; --teal:#14b8a6; --teal-d:#0d9488; --muted:#8099b8; --text:#f0f4f8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Space Grotesk',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text)}
+  a{color:inherit}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  /* header */
+  .hdr{background:linear-gradient(135deg,#0f2044,#1a3a6b);border-bottom:1px solid var(--line);
+    padding:16px 24px;display:flex;align-items:center;gap:14px}
+  .logo{width:38px;height:38px;background:linear-gradient(135deg,var(--teal-d),var(--accent));
+    border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--bg);flex-shrink:0}
+  .wrap{max-width:1100px;margin:0 auto;padding:28px 20px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px}
+  .kicker{font-size:11px;color:var(--teal);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px}
+  /* search */
+  .srow{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+  label.fld{flex:1;min-width:200px}
+  .fld span{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+  input,select{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+    padding:10px 14px;color:var(--text);font-family:inherit;font-size:14px;outline:none}
+  input:focus,select:focus{border-color:var(--teal)}
+  .btn{background:linear-gradient(135deg,var(--teal-d),var(--accent));border:none;border-radius:8px;
+    padding:11px 22px;color:var(--bg);font-weight:700;font-size:14px;cursor:pointer;font-family:inherit}
+  .btn:disabled{opacity:.5;cursor:default}
+  .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:6px;
+    padding:8px 10px;font-size:12px;cursor:pointer;font-family:inherit;text-decoration:none;text-align:center;display:block;flex:1}
+  .btn-teal{background:rgba(13,148,136,.15);border:1px solid rgba(13,148,136,.4);color:var(--teal);
+    border-radius:6px;padding:8px 10px;font-size:12px;cursor:pointer;font-weight:600;font-family:inherit;flex:1}
+  /* chips */
+  .chip{background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.2);color:var(--accent);
+    border-radius:4px;padding:3px 8px;font-size:11px}
+  .chip-teal{background:rgba(13,148,136,.15);border:1px solid rgba(13,148,136,.35);color:var(--teal);
+    border-radius:20px;padding:4px 12px;font-size:12px}
+  /* grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+  .rcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;
+    display:flex;flex-direction:column;gap:12px}
+  .stat{font-size:16px;font-weight:700;color:var(--text)}
+  .stat small{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:400}
+  .sec-t{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+  .reason{font-size:12px;color:var(--muted);margin-bottom:3px;padding-left:10px;border-left:2px solid var(--teal-d)}
+  .divider{border-top:1px solid var(--line);padding-top:10px}
+  /* modal */
+  .ov{position:fixed;inset:0;background:rgba(10,22,40,.88);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:28px;max-width:620px;width:100%;max-height:85vh;overflow-y:auto;position:relative}
+  .x{position:absolute;top:16px;right:16px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;width:30px;height:30px;cursor:pointer;color:var(--muted);font-size:16px}
+  textarea.mail{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:16px;
+    font-size:13px;line-height:1.7;color:var(--text);font-family:inherit;min-height:300px;resize:vertical;margin-bottom:14px}
+  .spinner{width:18px;height:18px;border:2px solid var(--line);border-top-color:var(--teal);border-radius:50%;animation:spin .8s linear infinite;display:inline-block}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .err{background:rgba(220,80,80,.12);border:1px solid rgba(220,80,80,.4);color:#ffb4b4;border-radius:8px;padding:12px 16px;font-size:13px}
+  .muted{color:var(--muted)}
+  .small{font-size:12px}
+</style>
+</head>
+<body>
+  <div class="hdr">
+    <div class="logo">RM</div>
+    <div>
+      <div style="font-size:17px;font-weight:700;letter-spacing:-.5px">ResearchMatch</div>
+      <div class="small mono muted">ORCID-driven collaborator discovery · powered by OpenAlex</div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <!-- SEARCH -->
+    <div class="card" style="padding:24px 28px;margin-bottom:28px">
+      <div class="kicker">Discover collaborators</div>
+      <div style="font-size:20px;font-weight:600;margin-bottom:18px;letter-spacing:-.5px">Find researchers aligned with an ORCID profile</div>
+      <form id="searchForm" class="srow">
+        <label class="fld" style="flex:2">
+          <span>Your ORCID iD</span>
+          <input id="orcidInput" type="text" value="" placeholder="0000-0000-0000-0000" autocomplete="off" />
+        </label>
+        <button class="btn" id="searchBtn" type="submit">Find matches</button>
+      </form>
+      <div class="small muted" style="margin-top:10px">
+        Enter any ORCID iD to find aligned researchers. Matching uses topic-vector similarity (cosine) against the profile's OpenAlex research topics; existing co-authors are excluded so results are new collaborators.
+        &nbsp;<a href="#" id="exampleLink" style="color:var(--teal)">Try an example</a>
+      </div>
+    </div>
+
+    <div id="status"></div>
+
+    <!-- PROFILE -->
+    <div id="profile"></div>
+
+    <!-- FILTERS -->
+    <div id="filters" style="display:none;margin-bottom:16px">
+      <div class="srow">
+        <label class="fld"><span>Region</span>
+          <select id="regionSel"><option value="">All regions</option></select>
+        </label>
+        <label class="fld"><span>Topic focus</span>
+          <select id="topicSel"><option value="">All topics</option></select>
+        </label>
+        <label class="fld"><span>Minimum h-index</span>
+          <select id="hSel">
+            <option value="0">Any</option><option value="5">5+</option>
+            <option value="10">10+</option><option value="20">20+</option><option value="40">40+</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <!-- RESULTS HEADER -->
+    <div id="resHdr" style="display:none;align-items:center;gap:10px;margin-bottom:16px;font-size:15px;font-weight:600">
+      Researcher matches
+      <span id="resCount" class="mono small muted" style="background:#1a3a6b;border:1px solid var(--line);border-radius:20px;padding:3px 10px"></span>
+    </div>
+
+    <!-- CARDS -->
+    <div id="results" class="grid"></div>
+    <div id="empty"></div>
+
+    <footer style="margin-top:40px;padding-top:20px;border-top:1px solid var(--line);text-align:center" class="small muted">
+      Designed and developed by Darliane Ribeiro Cunha, PhD &middot; Data from
+      <a href="https://openalex.org" target="_blank" rel="noopener noreferrer" style="color:var(--teal)">OpenAlex</a> and
+      <a href="https://orcid.org" target="_blank" rel="noopener noreferrer" style="color:var(--teal)">ORCID</a>
+    </footer>
+  </div>
+
+<script>
+const MAILTO = "mailto=darlianerc@gmail.com"; // OpenAlex polite pool
+const OA = "https://api.openalex.org";
+const SELF_ORCID_DEFAULT = "0000-0003-2548-1237";
+
+const state = { me:null, candidates:[], coAuthorIds:new Set() };
+
+// ---------- helpers ----------
+const $ = s => document.querySelector(s);
+const el = (t,a={},...kids)=>{const e=document.createElement(t);for(const k in a){if(k==="style")e.style.cssText=a[k];else if(k.startsWith("on"))e.addEventListener(k.slice(2),a[k]);else e.setAttribute(k,a[k]);}for(const c of kids){if(c==null)continue;e.append(c.nodeType?c:document.createTextNode(c));}return e;};
+const cc = (code)=>{ // ISO code -> readable name (subset)
+  const m={NL:"Netherlands",DE:"Germany",GB:"United Kingdom",SE:"Sweden",BE:"Belgium",SG:"Singapore",
+    BR:"Brazil",US:"United States",CA:"Canada",CN:"China",HK:"Hong Kong",NO:"Norway",DK:"Denmark",
+    IT:"Italy",ES:"Spain",FR:"France",PT:"Portugal",AU:"Australia",JP:"Japan",KR:"South Korea",
+    FI:"Finland",GR:"Greece",CY:"Cyprus",NZ:"New Zealand",TR:"Turkey",IN:"India",PL:"Poland",CL:"Chile"};
+  return m[code]||code||"—";
+};
+const initials = n => n.split(/\s+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+// pick the dominant affiliation: most publication years, then most recent (fixes OpenAlex disambiguation quirks)
+function bestAffil(author){
+  const af = author.affiliations||[];
+  if(af.length){
+    const sorted=[...af].sort((x,y)=>{
+      const lx=(x.years||[]).length, ly=(y.years||[]).length;
+      if(ly!==lx) return ly-lx;
+      return Math.max(...(y.years||[0]))-Math.max(...(x.years||[0]));
+    });
+    return sorted[0].institution;
+  }
+  return (author.last_known_institutions||[])[0]||{};
+}
+// preferred affiliation for display: ORCID-sourced when available, else OpenAlex
+function affilOf(a){ return a._affil || bestAffil(a); }
+
+// ---------- ORCID enrichment (current employer + public email) ----------
+const orcidCache={};
+const orcidId = u => (u||"").replace(/^https?:\/\/orcid\.org\//,"");
+async function orcidInfo(u){
+  const id=orcidId(u); if(!id) return null;
+  if(id in orcidCache) return orcidCache[id];
+  const H={headers:{Accept:"application/json"}};
+  try{
+    const [emp,em]=await Promise.all([
+      fetch(`https://pub.orcid.org/v3.0/${id}/employments`,H).then(r=>r.ok?r.json():null).catch(()=>null),
+      fetch(`https://pub.orcid.org/v3.0/${id}/email`,H).then(r=>r.ok?r.json():null).catch(()=>null)
+    ]);
+    let org=null,country=null;
+    if(emp){
+      const sums=(emp["affiliation-group"]||[]).flatMap(g=>g.summaries||[]).map(s=>s["employment-summary"]).filter(Boolean);
+      const cur=sums.filter(s=>!s["end-date"]);
+      const pick=(cur.length?cur:sums).sort((a,b)=>(+(b["start-date"]?.year?.value||0))-(+(a["start-date"]?.year?.value||0)))[0];
+      if(pick){ org=pick.organization?.name||null; country=pick.organization?.address?.country||null; }
+    }
+    let email=null;
+    if(em && Array.isArray(em.email) && em.email.length){
+      const pe=em.email.find(e=>e.primary&&e.email)||em.email.find(e=>e.email);
+      email=pe?pe.email:null;
+    }
+    const info={org,country,email};
+    orcidCache[id]=info; return info;
+  }catch(e){ orcidCache[id]=null; return null; }
+}
+// enrich the visible candidates from ORCID in the background, then re-render
+async function enrichCandidates(){
+  const pool=state.candidates.filter(a=>a.orcid && !a._enriched);
+  if(!pool.length) return;
+  setStatus(`<span class="spinner"></span> &nbsp;Refining current institutions and contacts from ORCID…`);
+  let i=0;
+  async function worker(){
+    while(i<pool.length){
+      const a=pool[i++]; a._enriched=true;
+      const info=await orcidInfo(a.orcid);
+      if(info){
+        if(info.org) a._affil={display_name:info.org, country_code:info.country||bestAffil(a).country_code};
+        if(info.email) a._email=info.email;
+      }
+    }
+  }
+  await Promise.all(Array.from({length:6},worker));
+  setStatus("");
+  const r=$("#regionSel").value, t=$("#topicSel").value, h=$("#hSel").value;
+  buildFilters(state.candidates);
+  if([...$("#regionSel").options].some(o=>o.value===r)) $("#regionSel").value=r;
+  if([...$("#topicSel").options].some(o=>o.value===t)) $("#topicSel").value=t;
+  $("#hSel").value=h;
+  render();
+}
+const num = n => (n||0).toLocaleString("en-GB");
+
+function setStatus(html,isErr){ $("#status").innerHTML = html ? `<div class="${isErr?'err':'card'}" style="padding:16px 20px;margin-bottom:20px">${html}</div>` : ""; }
+
+// cosine similarity between two topic-weight maps
+function cosine(a,b){
+  let dot=0,na=0,nb=0;
+  for(const k in a){ na+=a[k]*a[k]; if(b[k]) dot+=a[k]*b[k]; }
+  for(const k in b){ nb+=b[k]*b[k]; }
+  if(!na||!nb) return 0;
+  return dot/(Math.sqrt(na)*Math.sqrt(nb));
+}
+const topicMap = topics => { const m={}; (topics||[]).forEach(t=>{m[t.id]=t.count;}); return m; };
+
+// ---------- ORCID resolve + search ----------
+async function run(orcid){
+  orcid = orcid.trim().replace(/^https?:\/\/orcid\.org\//,"");
+  if(!/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(orcid)){
+    setStatus("That does not look like a valid ORCID iD. Format: 0000-0000-0000-0000.",true); return;
+  }
+  $("#searchBtn").disabled = true;
+  $("#filters").style.display="none"; $("#resHdr").style.display="none";
+  $("#results").innerHTML=""; $("#empty").innerHTML=""; $("#profile").innerHTML="";
+  setStatus(`<span class="spinner"></span> &nbsp;Resolving ORCID profile on OpenAlex…`);
+
+  try{
+    // 1. resolve author
+    const ar = await fetch(`${OA}/authors?filter=orcid:${orcid}&${MAILTO}`).then(r=>r.json());
+    if(!ar.results || !ar.results.length){
+      setStatus("No OpenAlex author is linked to that ORCID iD. The profile may be new or have no indexed works yet.",true);
+      $("#searchBtn").disabled=false; return;
+    }
+    const me = ar.results[0];
+    state.me = me;
+    const myTopics = topicMap(me.topics);
+    // enrich own profile from ORCID (more current affiliation + public email)
+    try{
+      const mine=await orcidInfo(me.orcid||orcid);
+      if(mine){
+        if(mine.org) me._affil={display_name:mine.org, country_code:mine.country||bestAffil(me).country_code};
+        if(mine.email) me._email=mine.email;
+      }
+    }catch(e){}
+    renderProfile(me);
+
+    // 2. co-authors to exclude
+    setStatus(`<span class="spinner"></span> &nbsp;Reading publication network…`);
+    state.coAuthorIds = new Set([me.id]);
+    try{
+      const wr = await fetch(`${OA}/works?filter=author.id:${me.id.split('/').pop()}&per_page=100&select=authorships&${MAILTO}`).then(r=>r.json());
+      (wr.results||[]).forEach(w=>(w.authorships||[]).forEach(a=>state.coAuthorIds.add(a.author.id)));
+    }catch(e){/* non-fatal */}
+
+    // 3. candidate pool from her top topics
+    setStatus(`<span class="spinner"></span> &nbsp;Searching researchers in matching topics…`);
+    const topIds = (me.topics||[]).map(t=>t.id.split('/').pop()); // use ALL research topics to broaden the net
+    if(!topIds.length){ setStatus("This profile has no indexed research topics yet, so matching is not possible.",true); $("#searchBtn").disabled=false; return; }
+    const sel = "id,display_name,orcid,works_count,cited_by_count,summary_stats,topics,last_known_institutions,affiliations";
+    const cr = await fetch(`${OA}/authors?filter=topics.id:${topIds.join("|")}&sort=cited_by_count:desc&per_page=200&select=${sel}&${MAILTO}`).then(r=>r.json());
+
+    // 4. score
+    const scored = (cr.results||[])
+      .filter(a => !state.coAuthorIds.has(a.id))
+      .map(a=>{
+        const sim = cosine(myTopics, topicMap(a.topics));
+        return { ...a, score: Math.round(sim*100), _sim:sim };
+      })
+      .filter(a => a.score > 0)
+      .sort((x,y)=> y._sim - x._sim)
+      .slice(0,48);
+
+    state.candidates = scored;
+    setStatus("");
+    buildFilters(scored);
+    render();
+    enrichCandidates(); // background: pull current institution + public email from ORCID
+  }catch(e){
+    console.error(e);
+    setStatus("Something went wrong reaching OpenAlex. Please check your connection and try again.",true);
+  }
+  $("#searchBtn").disabled=false;
+}
+
+// ---------- profile card ----------
+function renderProfile(me){
+  const inst = affilOf(me);
+  const stats = me.summary_stats||{};
+  const topTopics = (me.topics||[]).slice(0,6).map(t=>t.display_name);
+  $("#profile").innerHTML="";
+  const box = el("div",{class:"card",style:"background:linear-gradient(135deg,#1a3a6b,#0f2044);padding:20px 24px;margin-bottom:28px;display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start"},
+    el("div",{style:"width:52px;height:52px;border-radius:13px;background:linear-gradient(135deg,#0d9488,#22d3ee);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#0a1628;flex-shrink:0"}, initials(me.display_name)),
+    (()=>{
+      const c = el("div",{style:"flex:1;min-width:220px"});
+      c.append(el("div",{style:"font-size:17px;font-weight:700;margin-bottom:2px"}, me.display_name));
+      c.append(el("div",{class:"small muted",style:"margin-bottom:12px"}, `${inst.display_name||"Affiliation unavailable"}${inst.country_code?" · "+cc(inst.country_code):""}`));
+      c.append(el("div",{class:"sec-t",style:"margin-bottom:6px"}, "OpenAlex metrics"));
+      const row = el("div",{style:"display:flex;gap:20px;margin-bottom:14px;flex-wrap:wrap"});
+      [["h-index",stats.h_index],["Citations",num(me.cited_by_count)],["Works",num(me.works_count)],["i10",stats.i10_index]].forEach(([l,v])=>{
+        row.append(el("div",{style:"text-align:center"},
+          el("div",{class:"mono",style:"font-size:22px;font-weight:700;color:#22d3ee"}, String(v??"—")),
+          el("div",{class:"small muted",style:"text-transform:uppercase;letter-spacing:1px;font-size:10px"}, l)));
+      });
+      c.append(row);
+      const chips = el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"});
+      topTopics.forEach(t=>chips.append(el("span",{class:"chip-teal"}, t)));
+      c.append(chips);
+      if(me._email) c.append(el("div",{class:"small",style:"margin-bottom:10px"},
+        el("span",{class:"muted"},"Public email (ORCID): "),
+        el("a",{href:"mailto:"+me._email,style:"color:#14b8a6"}, me._email)));
+      const links = el("div",{style:"display:flex;gap:8px;flex-wrap:wrap"});
+      const gsUrl = "https://scholar.google.com/scholar?q=" + encodeURIComponent('"'+me.display_name+'"');
+      links.append(el("a",{class:"btn-ghost",style:"flex:0 1 auto;padding:8px 14px",href:gsUrl,target:"_blank",rel:"noopener noreferrer"}, "Check on Google Scholar ↗"));
+      if(me.orcid) links.append(el("a",{class:"btn-ghost",style:"flex:0 1 auto;padding:8px 14px",href:me.orcid,target:"_blank",rel:"noopener noreferrer"}, "ORCID ↗"));
+      links.append(el("a",{class:"btn-ghost",style:"flex:0 1 auto;padding:8px 14px",href:me.id,target:"_blank",rel:"noopener noreferrer"}, "OpenAlex ↗"));
+      c.append(links);
+      return c;
+    })()
+  );
+  $("#profile").append(box);
+}
+
+// ---------- filters ----------
+function buildFilters(list){
+  const regions = [...new Set(list.map(a=>affilOf(a).country_code).filter(Boolean))].sort();
+  const rsel = $("#regionSel"); rsel.innerHTML='<option value="">All regions</option>';
+  regions.forEach(c=>rsel.append(el("option",{value:c}, cc(c))));
+  const topics = [...new Set(list.flatMap(a=>(a.topics||[]).slice(0,3).map(t=>t.display_name)))].sort();
+  const tsel = $("#topicSel"); tsel.innerHTML='<option value="">All topics</option>';
+  topics.forEach(t=>tsel.append(el("option",{value:t}, t)));
+  $("#filters").style.display="block"; $("#resHdr").style.display="flex";
+}
+
+// ---------- render results ----------
+function render(){
+  const region=$("#regionSel").value, topic=$("#topicSel").value, minH=+$("#hSel").value;
+  const list = state.candidates.filter(a=>{
+    const inst=affilOf(a);
+    if(region && inst.country_code!==region) return false;
+    if(minH && (a.summary_stats?.h_index||0)<minH) return false;
+    if(topic && !(a.topics||[]).slice(0,3).some(t=>t.display_name===topic)) return false;
+    return true;
+  });
+  $("#resCount").textContent = `${list.length} found`;
+  const res=$("#results"); res.innerHTML="";
+  list.forEach(a=>res.append(card(a)));
+  $("#empty").innerHTML = list.length ? "" :
+    `<div style="text-align:center;padding:60px 20px" class="muted">
+      <div style="font-size:40px;margin-bottom:12px">🔭</div>
+      <div style="font-size:16px;color:var(--text);margin-bottom:8px">No matches for this filter</div>
+      <div class="small">Try a different region, topic or h-index combination.</div></div>`;
+}
+
+function ring(score){
+  const r=20,c=24,circ=2*Math.PI*r,dash=(score/100)*circ;
+  const col=score>=60?"#22d3ee":score>=35?"#14b8a6":"#8099b8";
+  const ns="http://www.w3.org/2000/svg";
+  const wrap=el("div",{style:"position:relative;width:48px;height:48px;flex-shrink:0"});
+  const svg=document.createElementNS(ns,"svg"); svg.setAttribute("width","48");svg.setAttribute("height","48");svg.style.transform="rotate(-90deg)";
+  const bg=document.createElementNS(ns,"circle"); [["cx",c],["cy",c],["r",r]].forEach(([k,v])=>bg.setAttribute(k,v)); bg.setAttribute("fill","none");bg.setAttribute("stroke","#1e3357");bg.setAttribute("stroke-width","4");
+  const fg=document.createElementNS(ns,"circle"); [["cx",c],["cy",c],["r",r]].forEach(([k,v])=>fg.setAttribute(k,v)); fg.setAttribute("fill","none");fg.setAttribute("stroke",col);fg.setAttribute("stroke-width","4");fg.setAttribute("stroke-dasharray",`${dash} ${circ}`);fg.setAttribute("stroke-linecap","round");
+  svg.append(bg,fg); wrap.append(svg);
+  wrap.append(el("div",{class:"mono",style:`position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:${col}`}, String(score)));
+  return wrap;
+}
+
+function card(a){
+  const inst=affilOf(a);
+  const stats=a.summary_stats||{};
+  const shared = sharedTopics(a);
+  const c = el("div",{class:"rcard"});
+  // head
+  c.append(el("div",{style:"display:flex;gap:12px;align-items:flex-start"},
+    el("div",{style:"width:42px;height:42px;border-radius:10px;background:#1a3a6b;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#22d3ee;flex-shrink:0"}, initials(a.display_name)),
+    el("div",{style:"flex:1"},
+      el("div",{style:"font-size:15px;font-weight:600;margin-bottom:2px"}, a.display_name),
+      el("div",{class:"small muted"}, `${inst.display_name||"—"}${inst.country_code?" · "+cc(inst.country_code):""}`)),
+    ring(a.score)
+  ));
+  // topic chips (shared first)
+  const chips=el("div",{style:"display:flex;gap:6px;flex-wrap:wrap"});
+  (a.topics||[]).slice(0,4).forEach(t=>{
+    const isShared = shared.includes(t.display_name);
+    chips.append(el("span",{class:"chip",style:isShared?"background:rgba(13,148,136,.18);border-color:rgba(13,148,136,.5);color:#14b8a6":""}, t.display_name));
+  });
+  c.append(chips);
+  // stats
+  const srow=el("div",{style:"display:flex;gap:20px"});
+  [["h-index",stats.h_index??"—"],["Citations",num(a.cited_by_count)],["Works",num(a.works_count)]].forEach(([l,v])=>{
+    srow.append(el("div",{}, el("div",{class:"stat mono"}, String(v), el("small",{}, l))));
+  });
+  c.append(srow);
+  // why it matches
+  const why=el("div",{class:"divider"}, el("div",{class:"sec-t"},"Why it matches"));
+  whyReasons(a,shared).forEach(r=>why.append(el("div",{class:"reason"}, r)));
+  c.append(why);
+  // contact: public email from ORCID, when the researcher has made it public
+  if(a._email){
+    c.append(el("div",{class:"divider"},
+      el("div",{class:"sec-t"},"Contact"),
+      el("a",{href:"mailto:"+a._email,class:"small",style:"color:#14b8a6;word-break:break-all"}, "✉ "+a._email)));
+  }
+  // actions
+  const gsUrl = "https://scholar.google.com/scholar?q=" + encodeURIComponent('"'+a.display_name+'"');
+  const acts=el("div",{style:"display:flex;gap:8px;flex-wrap:wrap"});
+  acts.append(el("a",{class:"btn-ghost",href:gsUrl,target:"_blank",rel:"noopener noreferrer"}, "Google Scholar ↗"));
+  acts.append(el("a",{class:"btn-ghost",href:a.orcid||a.id,target:"_blank",rel:"noopener noreferrer"}, a.orcid?"ORCID ↗":"OpenAlex ↗"));
+  c.append(acts);
+  return c;
+}
+
+function sharedTopics(a){
+  const mine=new Set((state.me.topics||[]).slice(0,8).map(t=>t.display_name));
+  return (a.topics||[]).map(t=>t.display_name).filter(n=>mine.has(n));
+}
+function whyReasons(a,shared){
+  const out=[];
+  if(shared.length) out.push(`Shared research topics: ${shared.slice(0,3).join(", ")}`);
+  out.push(`Topic-vector similarity score of ${a.score}/100 with your profile`);
+  const inst=affilOf(a);
+  if(inst.country_code && inst.country_code!=="BR") out.push(`International base (${cc(inst.country_code)}) for visiting/postdoc or joint funding`);
+  if((a.summary_stats?.h_index||0)>=20) out.push(`Senior profile (h-index ${a.summary_stats.h_index}) suited to fellowship or co-supervision`);
+  else if((a.summary_stats?.h_index||0)>0) out.push(`Active researcher (h-index ${a.summary_stats.h_index}) for peer collaboration`);
+  return out.slice(0,4);
+}
+
+// ---------- wire up ----------
+$("#searchForm").addEventListener("submit",e=>{e.preventDefault();run($("#orcidInput").value);});
+["#regionSel","#topicSel","#hSel"].forEach(s=>$(s).addEventListener("change",render));
+$("#exampleLink").addEventListener("click",e=>{e.preventDefault();$("#orcidInput").value=SELF_ORCID_DEFAULT;run(SELF_ORCID_DEFAULT);});
+</script>
+</body>
+</html>
