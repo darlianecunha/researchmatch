@@ -4,7 +4,6 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ResearchMatch with ORCID · collaborator finder</title>
-<link rel="preconnect" href="https://api.openalex.org" />
 <style>
   :root{
     --bg:#0a1628; --panel:#111f38; --panel2:#0f2044; --line:#1e3357;
@@ -131,8 +130,9 @@
   </div>
 
 <script>
-const MAILTO = "mailto=darlianerc@gmail.com"; // OpenAlex polite pool
-const OA = "https://api.openalex.org";
+// OpenAlex is reached through a serverless proxy (/api/openalex) that adds the API key server-side.
+const MAILTO = "proxy=1";
+const OA = "/api/openalex";
 const SELF_ORCID_DEFAULT = "0000-0003-2548-1237";
 
 const state = { me:null, candidates:[], coAuthorIds:new Set() };
@@ -250,7 +250,14 @@ async function run(orcid){
 
   try{
     // 1. resolve author
-    const ar = await fetch(`${OA}/authors?filter=orcid:${orcid}&${MAILTO}`).then(r=>r.json());
+    const arRes = await fetch(`${OA}/authors?filter=orcid:${orcid}&${MAILTO}`);
+    if(!arRes.ok){
+      const msg = arRes.status===429 ? "OpenAlex request limit reached for now. Please try again in a few minutes."
+        : arRes.status===401||arRes.status===403 ? "OpenAlex rejected the request (API key missing or invalid on the server)."
+        : `OpenAlex returned an error (HTTP ${arRes.status}). Please try again later.`;
+      setStatus(msg,true); $("#searchBtn").disabled=false; return;
+    }
+    const ar = await arRes.json();
     if(!ar.results || !ar.results.length){
       setStatus("No OpenAlex author is linked to that ORCID iD. The profile may be new or have no indexed works yet.",true);
       $("#searchBtn").disabled=false; return;
