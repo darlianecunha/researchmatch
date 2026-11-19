@@ -2,12 +2,15 @@
 // Keeps the API key out of the browser: set OPENALEX_API_KEY in the Vercel project settings.
 module.exports = async function handler(req, res) {
   const key = process.env.OPENALEX_API_KEY || "";
-  const parts = Array.isArray(req.query.path) ? req.query.path : [req.query.path || ""];
-  const url = new URL("https://api.openalex.org/" + parts.join("/"));
-  for (const [k, v] of Object.entries(req.query)) {
-    if (k === "path" || k === "mailto" || k === "api_key") continue;
-    url.searchParams.set(k, Array.isArray(v) ? v[0] : v);
-  }
+  // Take the path from the request URL itself (works whether or not Vercel fills req.query.path)
+  const incoming = new URL(req.url, "http://localhost");
+  let path = incoming.pathname.replace(/^\/api\/openalex\/?/, "");
+  if (!path && req.query && req.query.path) path = Array.isArray(req.query.path) ? req.query.path.join("/") : String(req.query.path);
+  const url = new URL("https://api.openalex.org/" + path);
+  incoming.searchParams.forEach((v, k) => {
+    if (k === "path" || k === "mailto" || k === "api_key" || k === "proxy") return;
+    url.searchParams.set(k, v);
+  });
   if (key) url.searchParams.set("api_key", key);
   try {
     const r = await fetch(url.toString(), { headers: { Accept: "application/json" } });
