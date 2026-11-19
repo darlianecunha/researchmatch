@@ -8,7 +8,7 @@ module.exports = async function handler(req, res) {
   if (!path && req.query && req.query.path) path = Array.isArray(req.query.path) ? req.query.path.join("/") : String(req.query.path);
   const url = new URL("https://api.openalex.org/" + path);
   incoming.searchParams.forEach((v, k) => {
-    if (k === "path" || k === "mailto" || k === "api_key" || k === "proxy") return;
+    if (k === "path" || k === "...path" || k.startsWith("...") || k === "mailto" || k === "api_key" || k === "proxy") return;
     url.searchParams.set(k, v);
   });
   if (key) url.searchParams.set("api_key", key);
